@@ -52,8 +52,15 @@ module Stripe
       refresh_from({ :discount => nil }, api_key, true)
     end
 
-    def create_bank_account(params)
-      response, api_key = Stripe.request(:post, bank_accounts_url, @api_key, params)
+    def create_bank_account(params, api_key=nil)
+      api_key ||= @api_key
+      response, api_key = Stripe.request(:post, bank_accounts_url, api_key, params)
+      return response
+    end
+
+    def verify_bank_account(params, account=nil)
+      account ||= self.default_bank_account
+      response, api_key = Stripe.request(:post, bank_verify_url(account), @api_key, params)
       return response
     end
 
@@ -73,6 +80,10 @@ module Stripe
 
     def bank_accounts_url
       url + '/bank_accounts'
+    end
+
+    def bank_verify_url(account)
+      bank_accounts_url + '/' + account + '/verify'
     end
 
   end
