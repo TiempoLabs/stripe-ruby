@@ -52,6 +52,11 @@ module Stripe
       refresh_from({ :discount => nil }, api_key, true)
     end
 
+    def create_bank_account(params)
+      response, api_key = Stripe.request(:post, bank_accounts_url, @api_key, params)
+      return response
+    end
+
     private
 
     def discount_url
@@ -65,5 +70,10 @@ module Stripe
     def subscriptions_url
       url + '/subscriptions'
     end
+
+    def bank_accounts_url
+      url + '/bank_accounts'
+    end
+
   end
 end
