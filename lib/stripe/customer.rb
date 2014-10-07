@@ -55,13 +55,17 @@ module Stripe
     def create_bank_account(params, api_key=nil)
       api_key ||= @api_key
       response, api_key = Stripe.request(:post, bank_accounts_url, api_key, params)
-      return response
+      account = BankAccount.construct_from(response)
+      self.refresh
+      return account
     end
 
     def verify_bank_account(params, account=nil)
       account ||= self.default_bank_account
       response, api_key = Stripe.request(:post, bank_verify_url(account), @api_key, params)
-      return response
+      account = BankAccount.construct_from(response)
+      self.refresh
+      return account
     end
 
     private

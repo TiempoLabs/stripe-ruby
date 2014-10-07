@@ -33,7 +33,9 @@ module Stripe
         'list' => ListObject,
         'refund' => Refund,
         'application_fee' => ApplicationFee,
-        'fee_refund' => ApplicationFeeRefund
+        'fee_refund' => ApplicationFeeRefund,
+        'bank_account' => BankAccount,
+        'payment' => Payment
       }
     end
 

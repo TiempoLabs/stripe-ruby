@@ -41,6 +41,7 @@ require 'stripe/subscription'
 require 'stripe/application_fee'
 require 'stripe/refund'
 require 'stripe/application_fee_refund'
+require 'stripe/bank_account'
 
 # Errors
 require 'stripe/errors/stripe_error'
