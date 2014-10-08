@@ -60,9 +60,10 @@ module Stripe
       return account
     end
 
-    def verify_bank_account(params, account=nil)
+    def verify_bank_account(params, api_key=nil, account=nil)
+      api_key ||= @api_key
       account ||= self.default_bank_account
-      response, api_key = Stripe.request(:post, bank_verify_url(account), @api_key, params)
+      response, api_key = Stripe.request(:post, bank_verify_url(account), api_key, params)
       account = BankAccount.construct_from(response)
       self.refresh
       return account
