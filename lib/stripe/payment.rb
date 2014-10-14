@@ -5,6 +5,10 @@ module Stripe
 		:pending => 'pending',
 		:paid => 'paid',
 	}
+
+	METHODS = {
+		:ach => 'ach',
+	}
     
 	include Stripe::APIOperations::Create
 	include Stripe::APIOperations::List
