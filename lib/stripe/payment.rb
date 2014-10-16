@@ -4,6 +4,7 @@ module Stripe
 	STATUS = {
 		:pending => 'pending',
 		:paid => 'paid',
+		:failed => 'failed',
 	}
 
 	METHODS = {
