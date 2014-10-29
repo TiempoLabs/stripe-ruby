@@ -23,9 +23,8 @@ module Stripe
     def get_default_bank_account
       response = nil
 
-      if (self.respond_to?(:default_bank_account))
-        bank_account_id = self.default_bank_account
-        response = self.bank_accounts.data.select{ |account| account.id == bank_account_id }.first
+      if (self.respond_to?(:active_account))
+        response = self.active_account
       end
 
       return response
