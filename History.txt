@@ -1,3 +1,55 @@
+=== 1.20.0 2015-02-19
+
+* Added Update & Delete operations to Bitcoin Receivers
+
+=== 1.19.1 2015-02-18
+
+* Fixed fetching upcoming invoice/paying invoice methods
+
+=== 1.19.0 2015-02-15
+
+* Support for new Transfers /reversals endpoint
+* Account retrieval now optionally accepts an account ID
+* Better support for passing custom headers, like Stripe-Account, through requests
+
+=== 1.18.0 2015-01-21
+
+* 1 major enhancement:
+  * Added support for making bitcoin charges through BitcoinReceiver source object
+
+=== 1.17.3 2015-01-12
+
+* 1 bugfix:
+  * Fixed API key propagation for ApplicationFee#refund
+
+=== 1.17.2 2015-01-08
+
+* 1 bugfix:
+  * Fixed API key propagation for child resources
+
+=== 1.17.1 2015-01-07
+
+* 2 minor enhacements:
+  * Fixed dependencies for Ruby versions less than 1.9.3
+  * Added deauthorize method to Account object
+
+=== 1.17.0 2014-12-15
+
+* 1 major enhacement:
+  * File uploads resource was added (for uploading pdf or image documents for
+    disputes)
+
+=== 1.16.1 2014-12-19
+
+* 2 minor enhancements:
+  * Ability to send idempotent requests
+  * Ability to specify stripe account as a header.
+
+=== 1.16.0 2014-10-08
+
+* 1 minor enhacement:
+  * Coupons now support update operations - useful for manipulating metadata.
+
 === 1.15.0 2014-07-26
 
 * 1 major enhacement:

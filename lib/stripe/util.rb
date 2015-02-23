@@ -17,35 +17,43 @@ module Stripe
 
     def self.object_classes
       @object_classes ||= {
+        # data structures
+        'list' => ListObject,
+
+        # business objects
+        'account' => Account,
+        'application_fee' => ApplicationFee,
         'balance' => Balance,
         'balance_transaction' => BalanceTransaction,
+        'card' => Card,
         'charge' => Charge,
+        'coupon' => Coupon,
         'customer' => Customer,
+        'event' => Event,
+        'fee_refund' => ApplicationFeeRefund,
         'invoiceitem' => InvoiceItem,
         'invoice' => Invoice,
         'plan' => Plan,
-        'coupon' => Coupon,
-        'event' => Event,
-        'transfer' => Transfer,
         'recipient' => Recipient,
-        'card' => Card,
-        'subscription' => Subscription,
-        'list' => ListObject,
         'refund' => Refund,
-        'application_fee' => ApplicationFee,
-        'fee_refund' => ApplicationFeeRefund,
-        'bank_account' => BankAccount,
+        'subscription' => Subscription,
+        'file_upload' => FileUpload,
+        'transfer' => Transfer,
+        'transfer_reversal' => Reversal,
+        'bitcoin_receiver' => BitcoinReceiver,
+        'bitcoin_transaction' => BitcoinTransaction
+		'bank_account' => BankAccount,
         'payment' => Payment
       }
     end
 
-    def self.convert_to_stripe_object(resp, api_key)
+    def self.convert_to_stripe_object(resp, opts)
       case resp
       when Array
-        resp.map { |i| convert_to_stripe_object(i, api_key) }
+        resp.map { |i| convert_to_stripe_object(i, opts) }
       when Hash
         # Try converting to a known object class.  If none available, fall back to generic StripeObject
-        object_classes.fetch(resp[:object], StripeObject).construct_from(resp, api_key)
+        object_classes.fetch(resp[:object], StripeObject).construct_from(resp, opts)
       else
         resp
       end
@@ -67,12 +75,12 @@ module Stripe
     def self.symbolize_names(object)
       case object
       when Hash
-        new = {}
+        new_hash = {}
         object.each do |key, value|
           key = (key.to_sym rescue key) || key
-          new[key] = symbolize_names(value)
+          new_hash[key] = symbolize_names(value)
         end
-        new
+        new_hash
       when Array
         object.map { |value| symbolize_names(value) }
       else
@@ -111,6 +119,21 @@ module Stripe
         end
       end
       result
+    end
+
+    # The secondary opts argument can either be a string or hash
+    # Turn this value into an api_key and a set of headers
+    def self.normalize_opts(opts)
+      case opts
+      when NilClass
+        {}
+      when String
+        {:api_key => opts}
+      when Hash
+        opts.clone
+      else
+        raise TypeError.new('normalize_opts expects a string or a hash')
+      end
     end
   end
 end

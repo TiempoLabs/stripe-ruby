@@ -26,7 +26,7 @@ module Stripe
 
     should "accessing id should not issue a fetch" do
       @mock.expects(:get).never
-      c = Stripe::Customer.new("test_customer");
+      c = Stripe::Customer.new("test_customer")
       c.id
     end
 
@@ -63,8 +63,44 @@ module Stripe
         assert_equal(401, e.http_status)
         assert_equal(true, !!e.http_body)
         assert_equal(true, !!e.json_body[:error][:message])
-        assert_equal(test_invalid_api_key_error['error']['message'], e.json_body[:error][:message])
+        assert_equal(test_invalid_api_key_error[:error][:message], e.json_body[:error][:message])
       end
+    end
+
+    should "send expand on fetch properly" do
+      @mock.expects(:get).once.
+        with("#{Stripe.api_base}/v1/charges/ch_test_charge?expand[]=customer", nil, nil).
+        returns(test_response(test_charge))
+
+      Stripe::Charge.retrieve({:id => 'ch_test_charge', :expand => [:customer]})
+    end
+
+    should "preserve expand across refreshes" do
+      @mock.expects(:get).twice.
+        with("#{Stripe.api_base}/v1/charges/ch_test_charge?expand[]=customer", nil, nil).
+        returns(test_response(test_charge))
+
+      ch = Stripe::Charge.retrieve({:id => 'ch_test_charge', :expand => [:customer]})
+      ch.refresh
+    end
+
+    should "send stripe account as header when set" do
+      stripe_account = "acct_0000"
+      Stripe.expects(:execute_request).with do |opts|
+        opts[:headers][:stripe_account] == stripe_account
+      end.returns(test_response(test_charge))
+
+      Stripe::Charge.create({:card => {:number => '4242424242424242'}},
+                            {:stripe_account => stripe_account, :api_key => 'sk_test_local'})
+    end
+
+    should "not send stripe account as header when not set" do
+      Stripe.expects(:execute_request).with do |opts|
+        opts[:headers][:stripe_account].nil?
+      end.returns(test_response(test_charge))
+
+      Stripe::Charge.create({:card => {:number => '4242424242424242'}},
+        'sk_test_local')
     end
 
     context "when specifying per-object credentials" do
@@ -114,6 +150,17 @@ module Stripe
     end
 
     context "with valid credentials" do
+      should "send along the idempotency-key header" do
+        Stripe.expects(:execute_request).with do |opts|
+          opts[:headers][:idempotency_key] == 'bar'
+        end.returns(test_response(test_charge))
+
+        Stripe::Charge.create({:card => {:number => '4242424242424242'}}, {
+          :idempotency_key => 'bar',
+          :api_key => 'local',
+        })
+      end
+
       should "urlencode values in GET params" do
         response = test_response(test_charge_array)
         @mock.expects(:get).with("#{Stripe.api_base}/v1/charges?customer=test%20customer", nil, nil).returns(response)
@@ -264,7 +311,6 @@ module Stripe
         @mock.expects(:get).never
         @mock.expects(:post).never
         @mock.expects(:delete).with("#{Stripe.api_base}/v1/customers/c_test_customer", nil, nil).once.returns(test_response({ "id" => "test_customer", "deleted" => true }))
-
         c = Stripe::Customer.construct_from(test_customer)
         c.delete
         assert_equal true, c.deleted
@@ -286,6 +332,33 @@ module Stripe
         assert c.kind_of? Array
         assert c[0].kind_of? Stripe::Charge
         assert c[0].card.kind_of?(Stripe::StripeObject) && c[0].card.object == 'card'
+      end
+
+      should "passing in a stripe_account header should pass it through on call" do
+        Stripe.expects(:execute_request).with do |opts|
+          opts[:method] == :get &&
+          opts[:url] == "#{Stripe.api_base}/v1/customers/c_test_customer" &&
+          opts[:headers][:stripe_account] == 'acct_abc'
+        end.once.returns(test_response(test_customer))
+        c = Stripe::Customer.retrieve("c_test_customer", {:stripe_account => 'acct_abc'})
+      end
+
+      should "passing in a stripe_account header should pass it through on save" do
+        Stripe.expects(:execute_request).with do |opts|
+          opts[:method] == :get &&
+          opts[:url] == "#{Stripe.api_base}/v1/customers/c_test_customer" &&
+          opts[:headers][:stripe_account] == 'acct_abc'
+        end.once.returns(test_response(test_customer))
+        c = Stripe::Customer.retrieve("c_test_customer", {:stripe_account => 'acct_abc'})
+
+        Stripe.expects(:execute_request).with do |opts|
+          opts[:method] == :post &&
+          opts[:url] == "#{Stripe.api_base}/v1/customers/c_test_customer" &&
+          opts[:headers][:stripe_account] == 'acct_abc' &&
+          opts[:payload] == 'description=FOO'
+        end.once.returns(test_response(test_customer))
+        c.description = 'FOO'
+        c.save
       end
 
       context "error checking" do

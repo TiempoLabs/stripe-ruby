@@ -14,6 +14,7 @@ require 'stripe/api_operations/create'
 require 'stripe/api_operations/update'
 require 'stripe/api_operations/delete'
 require 'stripe/api_operations/list'
+require 'stripe/api_operations/request'
 
 # Resources
 require 'stripe/util'
@@ -31,6 +32,7 @@ require 'stripe/invoice_item'
 require 'stripe/charge'
 require 'stripe/payment'
 require 'stripe/plan'
+require 'stripe/file_upload'
 require 'stripe/coupon'
 require 'stripe/token'
 require 'stripe/event'
@@ -40,7 +42,10 @@ require 'stripe/card'
 require 'stripe/subscription'
 require 'stripe/application_fee'
 require 'stripe/refund'
+require 'stripe/reversal'
 require 'stripe/application_fee_refund'
+require 'stripe/bitcoin_receiver'
+require 'stripe/bitcoin_transaction'
 require 'stripe/bank_account'
 
 # Errors
@@ -54,6 +59,8 @@ require 'stripe/errors/authentication_error'
 module Stripe
   DEFAULT_CA_BUNDLE_PATH = File.dirname(__FILE__) + '/data/ca-certificates.crt'
   @api_base = 'https://api.stripe.com'
+  @connect_base = 'https://connect.stripe.com'
+  @uploads_base = 'https://uploads.stripe.com'
 
   @ssl_bundle_path  = DEFAULT_CA_BUNDLE_PATH
   @verify_ssl_certs = true
@@ -61,26 +68,28 @@ module Stripe
 
 
   class << self
-    attr_accessor :api_key, :api_base, :verify_ssl_certs, :api_version
+    attr_accessor :api_key, :api_base, :verify_ssl_certs, :api_version, :connect_base, :uploads_base
   end
 
-  def self.api_url(url='')
-    @api_base + url
+  def self.api_url(url='', api_base_url=nil)
+    (api_base_url || @api_base) + url
   end
 
-  def self.request(method, url, api_key, params={}, headers={})
+  def self.request(method, url, api_key, params={}, headers={}, api_base_url=nil)
+    api_base_url = api_base_url || @api_base
+
     unless api_key ||= @api_key
-      raise AuthenticationError.new('No API key provided. ' +
-        'Set your API key using "Stripe.api_key = <API-KEY>". ' +
-        'You can generate API keys from the Stripe web interface. ' +
-        'See https://stripe.com/api for details, or email support@stripe.com ' +
+      raise AuthenticationError.new('No API key provided. ' \
+        'Set your API key using "Stripe.api_key = <API-KEY>". ' \
+        'You can generate API keys from the Stripe web interface. ' \
+        'See https://stripe.com/api for details, or email support@stripe.com ' \
         'if you have any questions.')
     end
 
     if api_key =~ /\s/
-      raise AuthenticationError.new('Your API key is invalid, as it contains ' +
-        'whitespace. (HINT: You can double-check your API key from the ' +
-        'Stripe web interface. See https://stripe.com/api for details, or ' +
+      raise AuthenticationError.new('Your API key is invalid, as it contains ' \
+        'whitespace. (HINT: You can double-check your API key from the ' \
+        'Stripe web interface. See https://stripe.com/api for details, or ' \
         'email support@stripe.com if you have any questions.)')
     end
 
@@ -92,11 +101,11 @@ module Stripe
     end
 
     if @verify_ssl_certs and !@CERTIFICATE_VERIFIED
-      @CERTIFICATE_VERIFIED = CertificateBlacklist.check_ssl_cert(@api_base, @ssl_bundle_path)
+      @CERTIFICATE_VERIFIED = CertificateBlacklist.check_ssl_cert(api_base_url, @ssl_bundle_path)
     end
 
     params = Util.objects_to_ids(params)
-    url = api_url(url)
+    url = api_url(url, api_base_url)
 
     case method.to_s.downcase.to_sym
     when :get, :head, :delete
@@ -104,7 +113,11 @@ module Stripe
       url += "#{URI.parse(url).query ? '&' : '?'}#{uri_encode(params)}" if params && params.any?
       payload = nil
     else
-      payload = uri_encode(params)
+      if headers[:content_type] && headers[:content_type] == "multipart/form-data"
+        payload = params
+      else
+        payload = uri_encode(params)
+      end
     end
 
     request_opts.update(:headers => request_headers(api_key).update(headers),
@@ -114,12 +127,12 @@ module Stripe
     begin
       response = execute_request(request_opts)
     rescue SocketError => e
-      handle_restclient_error(e)
+      handle_restclient_error(e, api_base_url)
     rescue NoMethodError => e
       # Work around RestClient bug
       if e.message =~ /\WRequestFailed\W/
         e = APIConnectionError.new('Unexpected HTTP response code')
-        handle_restclient_error(e)
+        handle_restclient_error(e, api_base_url)
       else
         raise
       end
@@ -127,10 +140,10 @@ module Stripe
       if rcode = e.http_code and rbody = e.http_body
         handle_api_error(rcode, rbody)
       else
-        handle_restclient_error(e)
+        handle_restclient_error(e, api_base_url)
       end
     rescue RestClient::Exception, Errno::ECONNREFUSED => e
-      handle_restclient_error(e)
+      handle_restclient_error(e, api_base_url)
     end
 
     [parse(response), api_key]
@@ -140,13 +153,13 @@ module Stripe
 
   def self.ssl_preflight_passed?
     if !verify_ssl_certs && !@no_verify
-      $stderr.puts "WARNING: Running without SSL cert verification. " +
+      $stderr.puts "WARNING: Running without SSL cert verification. " \
         "Execute 'Stripe.verify_ssl_certs = true' to enable verification."
 
       @no_verify = true
 
     elsif !Util.file_readable(@ssl_bundle_path) && !@no_bundle
-      $stderr.puts "WARNING: Running without SSL cert verification " +
+      $stderr.puts "WARNING: Running without SSL cert verification " \
         "because #{@ssl_bundle_path} isn't readable"
 
       @no_bundle = true
@@ -260,17 +273,18 @@ module Stripe
     APIError.new(error[:message], rcode, rbody, error_obj)
   end
 
-  def self.handle_restclient_error(e)
+  def self.handle_restclient_error(e, api_base_url=nil)
+    api_base_url = @api_base unless api_base_url
     connection_message = "Please check your internet connection and try again. " \
         "If this problem persists, you should check Stripe's service status at " \
         "https://twitter.com/stripestatus, or let us know at support@stripe.com."
 
     case e
     when RestClient::RequestTimeout
-      message = "Could not connect to Stripe (#{@api_base}). #{connection_message}"
+      message = "Could not connect to Stripe (#{api_base_url}). #{connection_message}"
 
     when RestClient::ServerBrokeConnection
-      message = "The connection to the server (#{@api_base}) broke before the " \
+      message = "The connection to the server (#{api_base_url}) broke before the " \
         "request completed. #{connection_message}"
 
     when RestClient::SSLCertificateNotVerified

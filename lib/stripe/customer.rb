@@ -5,51 +5,53 @@ module Stripe
     include Stripe::APIOperations::Update
     include Stripe::APIOperations::List
 
-    def add_invoice_item(params)
-      InvoiceItem.create(params.merge(:customer => id), @api_key)
+    def add_invoice_item(params, opts={})
+      opts = @opts.merge(Util.normalize_opts(opts))
+      InvoiceItem.create(params.merge(:customer => id), opts)
     end
 
     def invoices
-      Invoice.all({ :customer => id }, @api_key)
+      Invoice.all({ :customer => id }, @opts)
     end
 
     def invoice_items
-      InvoiceItem.all({ :customer => id }, @api_key)
+      InvoiceItem.all({ :customer => id }, @opts)
     end
 
     def upcoming_invoice
-      Invoice.upcoming({ :customer => id }, @api_key)
+      Invoice.upcoming({ :customer => id }, @opts)
     end
 
     def charges
-      Charge.all({ :customer => id }, @api_key)
+      Charge.all({ :customer => id }, @opts)
     end
 
-    def create_upcoming_invoice(params={})
-      Invoice.create(params.merge(:customer => id), @api_key)
+    def create_upcoming_invoice(params={}, opts={})
+      opts = @opts.merge(Util.normalize_opts(opts))
+      Invoice.create(params.merge(:customer => id), opts)
     end
 
-    def cancel_subscription(params={})
-      response, api_key = Stripe.request(:delete, subscription_url, @api_key, params)
-      refresh_from({ :subscription => response }, api_key, true)
+    def cancel_subscription(params={}, opts={})
+      response, opts = request(:delete, subscription_url, params, opts)
+      refresh_from({ :subscription => response }, opts, true)
       subscription
     end
 
-    def update_subscription(params)
-      response, api_key = Stripe.request(:post, subscription_url, @api_key, params)
-      refresh_from({ :subscription => response }, api_key, true)
+    def update_subscription(params={}, opts={})
+      response, opts = request(:post, subscription_url, params, opts)
+      refresh_from({ :subscription => response }, opts, true)
       subscription
     end
 
-    def create_subscription(params)
-      response, api_key = Stripe.request(:post, subscriptions_url, @api_key, params)
-      refresh_from({ :subscription => response }, api_key, true)
+    def create_subscription(params={}, opts={})
+      response, opts = request(:post, subscriptions_url, params, opts)
+      refresh_from({ :subscription => response }, opts, true)
       subscription
     end
 
     def delete_discount
-      Stripe.request(:delete, discount_url, @api_key)
-      refresh_from({ :discount => nil }, api_key, true)
+      _, opts = request(:delete, discount_url)
+      refresh_from({ :discount => nil }, opts, true)
     end
 
     def create_bank_account(params, api_key=nil)
