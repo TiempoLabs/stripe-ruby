@@ -5,6 +5,7 @@ module Stripe
 		:pending => 'pending',
 		:paid => 'paid',
 		:failed => 'failed',
+		:succeeded => 'succeeded',
 	}
 
 	METHODS = {
